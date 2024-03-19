@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
 import { decode, sign, verify } from 'hono/jwt'
+import { z } from "zod"
 
 export const userRouter = new Hono<{
   Bindings: {
@@ -10,12 +11,30 @@ export const userRouter = new Hono<{
   }
 }>()
 
+const signUpData = z.object({
+  username: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().optional()
+})
+
 userRouter.post('/signup', async (c) => {
+
+
+  const body = await c.req.json();
+
+  const { success } = signUpData.safeParse(body)
+
+  if (!success) {
+    c.status(411)
+    return c.json({
+      message: "Wrong data payload sent"
+    })
+  }
+
   const prisma = new PrismaClient({
     datasourceUrl: c.env.DATABASE_URL,
   }).$extends(withAccelerate())
 
-  const body = await c.req.json();
   try {
     const user = await prisma.user.create({
       data: {
